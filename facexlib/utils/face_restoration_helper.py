@@ -291,6 +291,13 @@ class FaceRestoreHelper(object):
         assert len(self.restored_faces) == len(
             self.inverse_affine_matrices), ('length of restored_faces and affine_matrices are different.')
         for restored_face, inverse_affine in zip(self.restored_faces, self.inverse_affine_matrices):
+            dtype = restored_face.dtype 
+            if dtype in(np.float32, np.float64):
+                _mul = 1.
+            elif dtype == np.uint8:
+                _mul = 255.
+            else:
+                _mul = 65535.
             # Add an offset to inverse affine matrix, for more precise back alignment
             if self.upscale_factor > 1:
                 extra_offset = 0.5 * self.upscale_factor
@@ -302,7 +309,7 @@ class FaceRestoreHelper(object):
             if self.use_parse:
                 # inference
                 face_input = cv2.resize(restored_face, (512, 512), interpolation=cv2.INTER_LINEAR)
-                face_input = img2tensor(face_input.astype('float32') / 255., bgr2rgb=True, float32=True)
+                face_input = img2tensor(face_input.astype('float32') / _mul, bgr2rgb=True, float32=True)
                 normalize(face_input, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True)
                 face_input = torch.unsqueeze(face_input, 0).to(self.device)
                 with torch.no_grad():
@@ -334,13 +341,13 @@ class FaceRestoreHelper(object):
                 inv_mask = cv2.warpAffine(mask, inverse_affine, (w_up, h_up))
                 # remove the black borders
                 inv_mask_erosion = cv2.erode(
-                    inv_mask, np.ones((int(2 * self.upscale_factor), int(2 * self.upscale_factor)), np.uint8))
+                    inv_mask, np.ones((int(2 * self.upscale_factor), int(2 * self.upscale_factor)), dtype))
                 pasted_face = inv_mask_erosion[:, :, None] * inv_restored
                 total_face_area = np.sum(inv_mask_erosion)  # // 3
                 # compute the fusion edge based on the area of face
                 w_edge = int(total_face_area**0.5) // 20
                 erosion_radius = w_edge * 2
-                inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8))
+                inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), dtype))
                 blur_size = w_edge * 2
                 inv_soft_mask = cv2.GaussianBlur(inv_mask_center, (blur_size + 1, blur_size + 1), 0)
                 if len(upsample_img.shape) == 2:  # upsample_img is gray image
