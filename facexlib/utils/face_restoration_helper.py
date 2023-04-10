@@ -109,7 +109,7 @@ class FaceRestoreHelper(object):
         """img can be image path or cv2 loaded image."""
         # self.input_img is Numpy array, (h, w, c), BGR, uint8, [0, 255]
         if isinstance(img, str):
-            img = cv2.imread(img)
+            img = cv2.imread(img, cv2.IMREAD_UNCHANGED)
 
         if np.max(img) > 256:  # 16-bit image
             img = img / 65535 * 255
